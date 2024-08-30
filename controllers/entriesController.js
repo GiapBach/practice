@@ -7,24 +7,28 @@ const BASE_URL = 'https://www.cognitoforms.com/api';
 
 async function fetchEntries(req, res) {
   let i = 1;
-  try {
-    const url = `${BASE_URL}/forms/${FORM_ID}/entries/${i}`;
-    const response = await axios.get(url, {
-      headers: { 'Authorization': `Bearer ${API_KEY}` }
-    });
+  while (true){
+    try {
+        const url = `${BASE_URL}/forms/${FORM_ID}/entries/${i}`;
+        const response = await axios.get(url, {
+          headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+    
+        const entries = response.data;
+        const jsonEntries = JSON.stringify(entries);
+    
+        pool.query('INSERT INTO example_table (data) VALUES (?)', [jsonEntries], (error, results) => {
+          if (error) {
+            return res.status(500).json({ error: error.message });
+          }
+          res.status(200).json({ message: 'Data inserted', id: results.insertId });
+        });
 
-    const entries = response.data;
-    const jsonEntries = JSON.stringify(entries);
-
-    pool.query('INSERT INTO example_table (data) VALUES (?)', [jsonEntries], (error, results) => {
-      if (error) {
-        return res.status(500).json({ error: error.message });
+        i++;
+    
+      } catch (error) {
+        res.status(500).json({ error: error.message });
       }
-      res.status(200).json({ message: 'Data inserted', id: results.insertId });
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 }
 

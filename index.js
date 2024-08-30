@@ -33,36 +33,80 @@ function disconnectDatabase() {
   });
 }
 
-async function fetchEntries() {
-  let i = 1;
-  while (true) {
-    try {
-      const url = `${BASE_URL}/forms/${FORM_ID}/entries/${i}`;
-      
-      const response = await axios.get(url, {
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-        },
-      });
-
-      const entries = response.data;
-
-      // Insert JSON data as a string
-      const jsonEntries = JSON.stringify(entries);
-      database.query('INSERT INTO example_table (data) VALUES (?)', [jsonEntries], (error, results) => {
-        if (error) throw error;
-        console.log('Data inserted:', results.insertId);
-      });
-
-      console.log('Entries:', entries);
-    } catch (error) {
-      console.error('Error fetching entries:', error.message);
-      break;
+async function fetchEntries(req, res) {
+    let i = 1;
+  
+    while (true) {
+      try {
+        const url = `${BASE_URL}/forms/${FORM_ID}/entries/${i}`;
+        const response = await axios.get(url, {
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+          },
+        });
+  
+        const entries = response.data;
+  
+        // Extract data from the JSON structure, excluding the Entry object
+        const {
+          Form: { Id: formId, InternalName: formInternalName, Name: formName },
+          FirstName: firstName,
+          SecondName: secondName,
+          Address: {
+            City: city,
+            CityStatePostalCode: cityStatePostalCode,
+            Country: country,
+            CountryCode: countryCode,
+            FullAddress: fullAddress,
+            FullInternationalAddress: fullInternationalAddress,
+            Latitude: latitude,
+            Longitude: longitude,
+            PostalCode: postalCode,
+            State: state,
+            StreetAddress: streetAddress,
+            Type: addressType
+          },
+          Date: date,
+          Id: idEntry
+        } = entries;
+  
+        // SQL query to insert the data, excluding the Entry object
+        const query = `
+          INSERT INTO example_table (
+            form_id, form_internal_name, form_name, first_name, second_name, city, 
+            city_state_postal_code, country, country_code, full_address, 
+            full_international_address, latitude, longitude, postal_code, 
+            state, street_address, address_type, date, id_entry
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+  
+        const values = [
+          formId, formInternalName, formName, firstName, secondName, city,
+          cityStatePostalCode, country, countryCode, fullAddress,
+          fullInternationalAddress, latitude, longitude, postalCode,
+          state, streetAddress, addressType, date, idEntry
+        ];
+  
+        // Execute the query
+        database.query(query, values, (error, results) => {
+          if (error) throw error;
+          console.log('Data inserted:', results.insertId);
+        });
+  
+        i++;
+        console.log('Entries:', entries);
+  
+      } catch (error) {
+        if (error.response && error.response.status === 404) {
+          // No more entries to fetch
+          break;
+        } else {
+          return res.status(500).json({ error: error.message });
+        }
+      }
     }
-    i++;
   }
-}
-
+    
 connectDatabase();
 fetchEntries().finally(() => {
   disconnectDatabase();
